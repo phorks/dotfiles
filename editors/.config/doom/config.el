@@ -13,6 +13,9 @@
 (add-to-list 'initial-frame-alist '(fullscreen . maximized))
 (add-to-list 'default-frame-alist '(fullscreen . maximized))
 
+;; make horizontal scrolling work via my mouse
+(setq mouse-wheel-tilt-scroll t)
+
 ;; set evil leader
 (evil-set-leader '(normal visual) (kbd "SPC"))
 ;; disable continuing comments after o/O
@@ -48,6 +51,20 @@
         (interactive)
         (evil-use-register ?+)
         (call-interactively 'evil-paste-before)))
+
+;; Map C-S-c globally to copy form clipboard
+(global-set-key (kbd "C-S-c")
+                (lambda ()
+                  (interactive)
+                  (evil-use-register ?+)
+                  (call-interactively 'evil-yank)))
+
+;; Map C-S-v globally to paste form clipboard
+(global-set-key (kbd "C-S-v")
+                (lambda ()
+                  (interactive)
+                  (evil-use-register ?+)
+                  (call-interactively 'evil-paste-after)))
 
 (defun my/reveal-file-in-files ()
   (interactive)
@@ -140,9 +157,17 @@
 
 (require 'lean4-mode)
 
+;; --------------------------------------------------------------------------------------
+;; treemacs/dired
+;; --------------------------------------------------------------------------------------
 (require 'treemacs)
 (setq treemacs-position 'right)
 (setq treemacs-follow-mode t)
 (define-key evil-treemacs-state-map (kbd "a")   #'treemacs-create-file)
 (define-key evil-treemacs-state-map (kbd "A")   #'treemacs-create-dir)
 (map! :leader :desc "Open sidebar" :n "e" #'+treemacs/toggle)
+
+(define-key dired-mode-map (kbd "a") #'dired-create-empty-file)
+(define-key dired-mode-map (kbd "A") #'dired-create-directory)
+;; enable nerd icons in dired
+(add-hook 'dired-mode-hook #'nerd-icons-dired-mode)

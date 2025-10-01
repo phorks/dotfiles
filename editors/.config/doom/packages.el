@@ -64,3 +64,4 @@
   :recipe (:host github
            :repo "leanprover-community/lean4-mode"
            :files ("*.el" "data")))
+(package! nerd-icons-dired)
