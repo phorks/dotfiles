@@ -7,7 +7,7 @@
 -- Or remove existing autocmds by their group name (which is prefixed with `lazyvim_` for the defaults)
 -- e.g. vim.api.nvim_del_augroup_by_name("lazyvim_wrap_spell")
 
--- don't add comment leader (// or --) to files created before or after a comment
+-- don't add comment indicator (// or -- or #) to lines created before or after a comment
 -- section by pressing o/O in normal mode
 vim.api.nvim_create_autocmd("FileType", {
   pattern = "*",
