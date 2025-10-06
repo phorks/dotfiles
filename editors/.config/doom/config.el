@@ -64,7 +64,7 @@
                 (lambda ()
                   (interactive)
                   (evil-use-register ?+)
-                  (call-interactively 'evil-paste-after)))
+                  (call-interactively 'evil-paste-before)))
 
 (defun my/reveal-file-in-files ()
   (interactive)
@@ -163,11 +163,165 @@
 (require 'treemacs)
 (setq treemacs-position 'right)
 (setq treemacs-follow-mode t)
+(setq treemacs-hide-gitignored-files-mode t)
 (define-key evil-treemacs-state-map (kbd "a")   #'treemacs-create-file)
 (define-key evil-treemacs-state-map (kbd "A")   #'treemacs-create-dir)
 (map! :leader :desc "Open sidebar" :n "e" #'+treemacs/toggle)
-
-(define-key dired-mode-map (kbd "a") #'dired-create-empty-file)
-(define-key dired-mode-map (kbd "A") #'dired-create-directory)
+;; (define-key dired-mode-map (kbd "a") #'dired-create-empty-file)
+;; (define-key dired-mode-map (kbd "A") #'dired-create-directory)
 ;; enable nerd icons in dired
 (add-hook 'dired-mode-hook #'nerd-icons-dired-mode)
+
+;; --------------------------------------------------------------------------------------
+;; LaTeX
+;; --------------------------------------------------------------------------------------
+(setq math-mode-from-persian 0)
+
+(defun begin-math-mode-from-persian()
+  (interactive)
+  (progn
+    (toggle-input-method)
+    (insert "$")
+    (setq math-mode-from-persian t)))
+
+(defun try-begin-persian-after-math-mode()
+  (interactive)
+  (progn
+    (insert "$")
+    (when (eq math-mode-from-persian t)
+      (toggle-input-method)
+      (setq math-mode-from-persian 0))))
+
+(defun begin-latex-command()
+  (interactive)
+  (progn
+    (insert "\\")
+    (when (string= current-input-method "persian")
+      (toggle-input-method))))
+
+(defun insert-lr-block()
+  (interactive)
+  (when (string= current-input-method "persian")
+    (progn
+      (insert "\n\\lr{")
+      (save-excursion (insert "}\n"))
+      (toggle-input-method))))
+
+(defun insert-lr-footnote()
+  (interactive)
+  (when (string= current-input-method "persian")
+    (progn
+      (insert "\n\\footnote{\\lr{")
+      (save-excursion (insert "}}\n"))
+      (toggle-input-method))))
+
+(defun end-english-block()
+  (interactive)
+  (unless (string= current-input-method "persian")
+    (progn
+      (forward-line)
+      (toggle-input-method))))
+
+(add-hook
+ 'LaTeX-mode-hook
+ (lambda ()
+   (visual-line-mode 1)
+   (+bidi-mode 1)
+   ;; make each line start a bidi paragraph
+   (setq-local bidi-paragraph-start-re "^")
+   (setq-local bidi-paragraph-separate-re "^")
+   (define-key evil-insert-state-local-map
+               (kbd "﷼") 'begin-math-mode-from-persian)
+   (define-key evil-insert-state-local-map
+               (kbd "$") 'try-begin-persian-after-math-mode)
+   (define-key evil-insert-state-local-map
+               (kbd "\\") 'begin-latex-command)
+   (define-key evil-insert-state-local-map
+               (kbd "C-1") 'insert-lr-block)
+   (define-key evil-insert-state-local-map
+               (kbd "C-2") 'insert-lr-footnote)
+   (define-key evil-insert-state-local-map
+               (kbd "C-`") 'end-english-block)))
+
+;; --------------------------------------------------------------------------------------
+;; lsp-ui
+;; --------------------------------------------------------------------------------------
+(setq lsp-ui-doc-position 'at-point)
+(setq lsp-ui-doc-show-with-mouse t)
+(setq lsp-ui-doc-delay 0.3)
+(map! :n
+      "K"
+      (lambda ()
+        (interactive)
+        (if (and (fboundp 'lsp-ui-doc--frame-visible-p)
+                 (lsp-ui-doc--frame-visible-p))
+            (lsp-ui-doc-focus-frame)
+          (lsp-ui-doc-glance))))
+(with-eval-after-load 'lsp-ui-doc
+  (evil-define-key 'normal lsp-ui-doc-frame-mode-map
+    (kbd "<escape>") #'lsp-ui-doc-hide))
+;; --------------------------------------------------------------------------------------
+;; sideline
+;; --------------------------------------------------------------------------------------
+(use-package! sideline-lsp
+  :init
+  (setq sideline-backends-right '(sideline-lsp sideline-flycheck))
+  (setq sideline-truncate t))
+
+(use-package! lsp-mode :hook (lsp-mode . sideline-mode))
+(use-package! lsp-ui :init (setq lsp-ui-sideline-enable nil))
+(use-package! sideline-flycheck
+  :hook (flycheck-mode . sideline-flycheck-setup))
+;; --------------------------------------------------------------------------------------
+;; rocq
+;; --------------------------------------------------------------------------------------
+
+;; autocompleting symbols and tactics defined externally
+(setq company-coq-live-on-the-edge t)
+;; doom disables company features it its rocq setup, we need to modify the value to exclude company
+(after! company-coq
+  (setq company-coq-disabled-features '(hello spinner smart-subscripts)))
+
+;; Defined in ~/.config/emacs/.local/straight/repos/PG/generic/pg-user.el
+(defun proof-assert-next-command-interactive ()
+  "Process until the end of the next unprocessed command after point.
+If inside a comment, just process until the start of the comment."
+  (interactive)
+  (proof-with-script-buffer ; for toolbar/other buffers
+   (save-excursion
+     (goto-char (proof-queue-or-locked-end))
+     (skip-chars-forward " \t\n")
+     (proof-assert-until-point))
+   (proof-maybe-follow-locked-end)))
+
+(defun my/proof-assert-next-command-interactive ()
+  "Like `proof-assert-next-command-interactive`, but place cursor sensibly.
+   After executing the next unprocessed Coq command:
+   - If the next character after the command is a newline, leave point on
+     the final character of the command.
+   - Otherwise, leave point at the next character."
+  (interactive)
+  (proof-with-script-buffer
+   ;; Execute next unprocessed command (same as original)
+   (save-excursion
+     (goto-char (proof-queue-or-locked-end))
+     (skip-chars-forward " \t\n")
+     (proof-assert-until-point))
+   ;; Now handle point placement
+   (let* ((locked-end (proof-queue-or-locked-end))
+          (after-command (save-excursion
+                           (goto-char locked-end)
+                           (skip-chars-forward " \t")
+                           (point))))
+     (goto-char after-command)
+     (when (looking-at "\n")
+       (backward-char 1)))))
+
+(with-eval-after-load 'proof-script
+  (define-key coq-mode-map (kbd "<M-down>")
+              'my/proof-assert-next-command-interactive)
+  (define-key coq-mode-map (kbd "<M-up>")
+              'proof-undo-last-successful-command)
+  (define-key coq-mode-map (kbd "<M-right>")
+              'proof-goto-point)
+  )

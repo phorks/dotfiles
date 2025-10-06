@@ -54,14 +54,24 @@
 ;; (unpin! t)
 
 (package! evil-surround)
+;; move lines up and down
 (package! move-text)
 (package! nerd-icons)
 (package! centaur-tabs)
 (package! dash)
 (package! lsp-mode)
+(package! lsp-ui)
+(package! sideline)
+(package! sideline-lsp)
+(package! sideline-flycheck)
+
 (package! magit-section)
+
 (package! lean4-mode
   :recipe (:host github
            :repo "leanprover-community/lean4-mode"
            :files ("*.el" "data")))
 (package! nerd-icons-dired)
+(package! kanata-kbd-mode
+  :recipe (:host github
+           :repo "chmouel/kanata-kbd-mode"))
