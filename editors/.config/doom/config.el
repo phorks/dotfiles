@@ -273,14 +273,14 @@
 (use-package! sideline-flycheck
   :hook (flycheck-mode . sideline-flycheck-setup))
 ;; --------------------------------------------------------------------------------------
-;; rocq
+;; rocq and proof general
 ;; --------------------------------------------------------------------------------------
 
 ;; autocompleting symbols and tactics defined externally
 (setq company-coq-live-on-the-edge t)
 ;; doom disables company features it its rocq setup, we need to modify the value to exclude company
 (after! company-coq
-  (setq company-coq-disabled-features '(hello spinner smart-subscripts)))
+  (setq company-coq-disabled-features '(hello spinner smart-subscripts prettify-symbols)))
 
 ;; Defined in ~/.config/emacs/.local/straight/repos/PG/generic/pg-user.el
 (defun proof-assert-next-command-interactive ()
@@ -313,15 +313,125 @@ If inside a comment, just process until the start of the comment."
                            (goto-char locked-end)
                            (skip-chars-forward " \t")
                            (point))))
-     (goto-char after-command)
-     (when (looking-at "\n")
-       (backward-char 1)))))
+     (goto-char after-command))))
 
-(with-eval-after-load 'proof-script
-  (define-key coq-mode-map (kbd "<M-down>")
-              'my/proof-assert-next-command-interactive)
-  (define-key coq-mode-map (kbd "<M-up>")
-              'proof-undo-last-successful-command)
-  (define-key coq-mode-map (kbd "<M-right>")
-              'proof-goto-point)
-  )
+;; (with-eval-after-load 'proof-script
+;;   (define-key coq-mode-map (kbd "<M-down>")
+;;               'my/proof-assert-next-command-interactive)
+;;   (define-key coq-mode-map (kbd "<M-up>")
+;;               'proof-undo-last-successful-command)
+;;   (define-key coq-mode-map (kbd "<M-right>")
+;;               'proof-goto-point)
+;;   )
+
+
+(add-hook
+ 'proof-mode-hook
+ (lambda ()
+   (map! :desc "Assert next command" :ni "M-n" #'my/proof-assert-next-command-interactive)
+   (map! :desc "Assert next command" :ni "M-p" #'proof-undo-last-successful-command)
+   (map! :desc "Assert next command" :ni "M-;" #'proof-goto-point)
+   (map! :desc "Go to end of command" :ni "M-n" #'my/proof-assert-next-command-interactive)
+   (map! :desc "Go to end of locked region" :n "M-b" #'proof-goto-end-of-locked)
+   (map! :desc "Go to start of command" :ni "M-[" #'proof-goto-command-start)
+   (map! :desc "Go to end of command" :ni "M-]" #'proof-goto-command-end)
+   )
+ )
+
+(add-hook
+ 'coq-mode-hook
+ (lambda ()
+   (map! :desc "Insert match construct" :i "M-m" #'company-coq-insert-match-construct)
+   (map! :desc "Company complete" :i "C-n" #'+company/complete)
+   (map! :desc "Company complete" :i "C-p" #'+company/complete)
+   (map! :desc "Company complete" :i "C-SPC" #'+company/complete)
+   )
+ )
+;; don't display ↔ as an emoji
+(with-eval-after-load 'emojify
+  (add-hook 'emojify-mode-hook
+            (lambda ()
+              (when (hash-table-p emojify-emojis)
+                (remhash "↔" emojify-emojis)))))
+
+
+
+
+;; --------------------------------------------------------------------------------------
+;; unicode support for Rocq
+;; https://gitlab.mpi-sws.org/iris/iris/-/blob/master/docs/editor.md
+;; --------------------------------------------------------------------------------------
+
+;; Input of unicode symbols
+(require 'math-symbol-lists)
+
+;; Automatically use math input method for Coq files
+(add-hook 'coq-mode-hook (lambda () (set-input-method "math")))
+;; Input method for the minibuffer
+(defun my-inherit-input-method ()
+  "Inherit input method from `minibuffer-selected-window'."
+  (let* ((win (minibuffer-selected-window))
+         (buf (and win (window-buffer win))))
+    (when buf
+      (activate-input-method (buffer-local-value 'current-input-method buf)))))
+(add-hook 'minibuffer-setup-hook #'my-inherit-input-method)
+;; Define the actual input method
+(quail-define-package "math" "UTF-8" "Ω" t)
+(quail-define-rules ; add whatever extra rules you want to define here...
+ ("\\fun"    ?λ)
+ ("\\mult"   ?⋅)
+ ("\\ent"    ?⊢)
+ ("\\valid"  ?✓)
+ ("\\diamond" ?◇)
+ ("\\box"    ?□)
+ ("\\bbox"   ?■)
+ ("\\later"  ?▷)
+ ("\\pred"   ?φ)
+ ("\\and"    ?∧)
+ ("\\or"     ?∨)
+ ("\\comp"   ?∘)
+ ("\\ccomp"  ?◎)
+ ("\\all"    ?∀)
+ ("\\ex"     ?∃)
+ ("\\to"     ?→)
+ ("\\ot"     ?←)
+ ("\\sep"    ?∗)
+ ("\\lc"     ?⌜)
+ ("\\rc"     ?⌝)
+ ("\\Lc"     ?⎡)
+ ("\\Rc"     ?⎤)
+ ("\\lam"    ?λ)
+ ("\\empty"  ?∅)
+ ("\\Lam"    ?Λ)
+ ("\\Sig"    ?Σ)
+ ("\\-"      ?∖)
+ ("\\aa"     ?●)
+ ("\\af"     ?◯)
+ ("\\auth"   ?●)
+ ("\\frag"   ?◯)
+ ("\\iff"    ?↔)
+ ("\\gname"  ?γ)
+ ("\\incl"   ?≼)
+ ("\\latert" ?▶)
+ ("\\update" ?⇝)
+ ("\\not"    ?¬)
+
+ ;; accents (for iLöb)
+ ("\\\"o" ?ö)
+
+ ;; subscripts and superscripts
+ ("^^+" ?⁺) ("__+" ?₊) ("^^-" ?⁻)
+ ("__0" ?₀) ("__1" ?₁) ("__2" ?₂) ("__3" ?₃) ("__4" ?₄)
+ ("__5" ?₅) ("__6" ?₆) ("__7" ?₇) ("__8" ?₈) ("__9" ?₉)
+
+ ("__a" ?ₐ) ("__e" ?ₑ) ("__h" ?ₕ) ("__i" ?ᵢ) ("__k" ?ₖ)
+ ("__l" ?ₗ) ("__m" ?ₘ) ("__n" ?ₙ) ("__o" ?ₒ) ("__p" ?ₚ)
+ ("__r" ?ᵣ) ("__s" ?ₛ) ("__t" ?ₜ) ("__u" ?ᵤ) ("__v" ?ᵥ) ("__x" ?ₓ)
+ )
+(mapc (lambda (x)
+        (if (cddr x)
+            (quail-defrule (cadr x) (car (cddr x)))))
+      ;; need to reverse since different emacs packages disagree on whether
+      ;; the first or last entry should take priority...
+      ;; see <https://mattermost.mpi-sws.org/iris/pl/46onxnb3tb8ndg8b6h1z1f7tny> for discussion
+      (reverse (append math-symbol-list-basic math-symbol-list-extended)))
